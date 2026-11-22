@@ -1,3 +1,4 @@
+
 name: Build CHARISMA Android
 
 on:
@@ -16,19 +17,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Extract project
-        run: unzip -o CHARISMA-ANDROID-starter.zip -d .
-
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android licenses and install SDK
+      - name: Accept Android licenses
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
-          yes | "$SDKMANAGER" --licenses
+          yes | "$SDKMANAGER" --licenses || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Setup Gradle
@@ -36,12 +34,23 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build APK
-        run: gradle assembleDebug
+      - name: Extract project
+        run: unzip -o CHARISMA-ANDROID-starter.zip -d extracted
+
+      - name: Locate project and build APK
+        run: |
+          SETTINGS=$(find extracted -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: Gradle settings file not found in ZIP"
+            find extracted -maxdepth 5 -type f
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "Project directory: $PROJECT_DIR"
+          gradle -p "$PROJECT_DIR" assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: CHARISMA-APK
-          path: app/build/outputs/apk/debug/*.apk
-          
+          path: extracted/**/app/build/outputs/apk/debug/*.apk
